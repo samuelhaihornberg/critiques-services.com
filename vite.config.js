@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
-  base: '/critiques-services.com/',
+  base: '/',
   plugins: [
     react(),
     VitePWA({
@@ -16,8 +16,8 @@ export default defineConfig({
         theme_color: '#1a1a2e',
         background_color: '#16213e',
         display: 'standalone',
-        scope: '/critiques-services.com/',
-        start_url: '/critiques-services.com/',
+        scope: '/',
+        start_url: '/',
         icons: [
           {
             src: 'pwa-192x192.svg',
