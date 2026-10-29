@@ -1,9 +1,13 @@
+import reactPlugin from 'eslint-plugin-react'
+import reactHooksPlugin from 'eslint-plugin-react-hooks'
+
 export default [
   {
     files: ['**/*.{js,jsx}'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
+      parserOptions: { ecmaFeatures: { jsx: true } },
       globals: {
         browser: true,
         es2022: true,
@@ -27,8 +31,8 @@ export default [
       },
     },
     plugins: {
-      react: require('eslint-plugin-react'),
-      'react-hooks': require('eslint-plugin-react-hooks'),
+      react: reactPlugin,
+      'react-hooks': reactHooksPlugin,
     },
     rules: {
       'react/react-in-jsx-scope': 'off',

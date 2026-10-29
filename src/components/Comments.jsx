@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { EMOJI_REACTIONS } from '../hooks/useReviews'
 import './Comments.css'
@@ -233,7 +234,7 @@ export default function Comments({
       ) : (
         <div className="comment-login-prompt">
           <p>Connectez-vous pour participer à la discussion</p>
-          <a href="/login" className="btn btn-primary btn-sm">Se connecter</a>
+          <Link to="/login" className="btn btn-primary btn-sm">Se connecter</Link>
         </div>
       )}
 

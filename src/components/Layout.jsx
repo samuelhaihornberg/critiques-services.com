@@ -91,10 +91,10 @@ export default function Layout() {
         <div className="footer-content">
           <p>Critiques Services - Plateforme indépendante d'avis sur les services</p>
           <p className="footer-legal">
-            <a href="/mentions-legales">Mentions légales</a> •
-            <a href="/cgu">CGU</a> •
-            <a href="/confidentialite">Confidentialité</a> •
-            <a href="/contact">Contact</a>
+            <Link to="/mentions-legales">Mentions légales</Link> •
+            <Link to="/cgu">CGU</Link> •
+            <Link to="/confidentialite">Confidentialité</Link> •
+            <Link to="/contact">Contact</Link>
           </p>
         </div>
       </footer>
