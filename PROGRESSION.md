@@ -1,14 +1,14 @@
 # PROGRESSION - critiques-services.com
 
-## État global : **85%** - Prêt pour production avec backend
+## État global : **90%** - Prêt pour production avec backend
 
 ### Ventilation par public
 
 | Public | Progression | Détails |
 |--------|-------------|---------|
-| **Client/Utilisateur** | 90% | Lecture critiques, votes, commentaires, recherche, carte, PWA |
-| **Contributeur/Auteur** | 85% | Création critique + vidéo, géolocalisation, profil, historique |
-| **Modérateur/Admin** | 15% | Interface manquante (backend requis) |
+| **Client/Utilisateur** | 95% | Lecture critiques, votes, commentaires, réactions emoji, recherche, carte, PWA, galerie preuves |
+| **Contributeur/Auteur** | 90% | Création critique + preuves multiples (img/vid/audio/doc), géolocalisation, prix + comparatif, commentaire auteur, profil, historique |
+| **Admin/Modérateur** | 20% | Interface manquante (backend requis), mais structure proofs/prix/commentaire auteur prête |
 
 ### Fonctionnalités core
 
@@ -16,12 +16,13 @@
 |----------------|--------|-------|
 | Authentification locale | ✅ | localStorage, inscription/connexion |
 | Liste critiques + filtres | ✅ | Recherche, catégorie, tri |
-| Détail critique | ✅ | Contenu, localisation, vidéo, votes |
-| Création critique | ✅ | Formulaire complet, carte, upload vidéo |
+| Détail critique | ✅ | Contenu, localisation, galerie preuves, vidéo, votes, réactions, commentaires, prix, commentaire auteur |
+| Création critique | ✅ | Formulaire complet + carte + upload multi-preuves (img/vid/audio/doc 100/20Mo) + prix + comparatif + commentaire auteur |
 | Système votes 👍/👎 | ✅ | Critiques + commentaires |
-| Commentaires forum | ✅ | Réponses, votes, auteur |
+| Réactions emoji (12) | ✅ | Critiques + commentaires, animées, compteur, état user |
+| Commentaires forum | ✅ | Réponses, votes, réactions, auteur |
 | Géolocalisation | ✅ | Leaflet + Nominatim, services en ligne URL |
-| Profil utilisateur | ✅ | Infos, stats, onglets, déconnexion |
+| Profil utilisateur | ✅ | Infos, stats, onglets critiques/stats, zone danger |
 | PWA (install, offline) | ✅ | Service Worker, manifest, icons SVG |
 | Build production | ✅ | Vite + PWA plugin |
 
@@ -38,25 +39,25 @@
 
 3. **Tests automatisés** (Recommandé)
    - Vitest (unit/hooks)
-   - Playwright (E2E critique→vote→commentaire)
+   - Playwright (E2E critique→vote→commentaire→réaction)
 
 ### Prochaines étapes prioritaires
 
 1. **Backend Node/Express + PostgreSQL** ou **Supabase/Firebase**
-2. **API REST** : critiques, commentaires, votes, users
-3. **Modération dashboard** : liste signalements, validation "vérifié"
+2. **API REST** : critiques, commentaires, votes, réactions, users, proofs
+3. **Modération dashboard** : liste signalements, validation "vérifié", gestion preuves
 4. **Tests CI/CD** : GitHub Actions → build → test → deploy
 
 ### Métriques techniques
 
-- **Bundle JS** : ~227 kB (70 kB gzip)
-- **CSS** : ~43 kB (7 kB gzip)
+- **Bundle JS** : ~245 kB (75 kB gzip)
+- **CSS** : ~52 kB (8 kB gzip)
 - **Modules** : 55
 - **Dépendances prod** : 6 (react, react-dom, react-router-dom, idb, leaflet via CDN)
 - **Dépendances dev** : 9
 
 ### Dernière mise à jour
-2024-01-29 - Création initiale complète + push GitHub
+2024-01-29 - Création initiale complète + push GitHub + admin features (proofs, prices, reactions, author comment)
 
 ### Déploiement
 - **GitHub Repo** : https://github.com/samuelhaihornberg/critiques-services.com
