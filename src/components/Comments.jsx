@@ -1,8 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { EMOJI_REACTIONS } from '../hooks/useReviews'
 import './Comments.css'
 
-export default function Comments({ reviewId, initialComments = [], onLoadComments, createComment, voteComment }) {
+export default function Comments({ 
+  reviewId, 
+  initialComments = [], 
+  onLoadComments, 
+  createComment, 
+  voteComment,
+  addReaction,
+  removeReaction,
+  hasUserReacted
+}) {
   const { user, isAuthenticated } = useAuth()
   const [comments, setComments] = useState(initialComments)
   const [loading, setLoading] = useState(false)
@@ -11,6 +21,7 @@ export default function Comments({ reviewId, initialComments = [], onLoadComment
   const [newComment, setNewComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [expandedReplies, setExpandedReplies] = useState(new Set())
+  const [userCommentReactions, setUserCommentReactions] = useState({})
 
   useEffect(() => {
     if (onLoadComments && initialComments.length === 0) {
@@ -25,6 +36,20 @@ export default function Comments({ reviewId, initialComments = [], onLoadComment
     try {
       const loaded = await onLoadComments(reviewId)
       setComments(loaded || [])
+      // Check user reactions on comments
+      if (user && loaded) {
+        const reactions = {}
+        for (const comment of loaded) {
+          if (comment.reactions) {
+            for (const emoji of Object.keys(comment.reactions)) {
+              const key = `${comment.id}:${emoji}`
+              const hasReacted = await hasUserReacted(reviewId, user.id, emoji)
+              reactions[key] = hasReacted
+            }
+          }
+        }
+        setUserCommentReactions(reactions)
+      }
     } catch (err) {
       console.error('Erreur chargement commentaires:', err)
     } finally {
@@ -101,6 +126,35 @@ export default function Comments({ reviewId, initialComments = [], onLoadComment
       ))
     } catch (err) {
       console.error('Erreur vote:', err)
+    }
+  }
+
+  const handleCommentReaction = async (commentId, emoji) => {
+    if (!isAuthenticated) {
+      alert('Connectez-vous pour réagir')
+      return
+    }
+    const key = `${commentId}:${emoji}`
+    const hasReacted = userCommentReactions[key]
+    if (hasReacted) {
+      await removeReaction(reviewId, user.id, emoji)
+      setUserCommentReactions(prev => ({ ...prev, [key]: false }))
+      setComments(prev => prev.map(c => {
+        if (c.id !== commentId) return c
+        const reactions = { ...c.reactions }
+        reactions[emoji] = Math.max(0, (reactions[emoji] || 1) - 1)
+        if (reactions[emoji] === 0) delete reactions[emoji]
+        return { ...c, reactions }
+      }))
+    } else {
+      await addReaction(reviewId, user.id, user.authorName || 'Utilisateur', user.authorAvatar || null, emoji)
+      setUserCommentReactions(prev => ({ ...prev, [key]: true }))
+      setComments(prev => prev.map(c => {
+        if (c.id !== commentId) return c
+        const reactions = { ...c.reactions }
+        reactions[emoji] = (reactions[emoji] || 0) + 1
+        return { ...c, reactions }
+      }))
     }
   }
 
@@ -208,9 +262,11 @@ export default function Comments({ reviewId, initialComments = [], onLoadComment
               setReplyContent={setReplyContent}
               onSubmitReply={handleSubmitReply}
               onVote={handleVote}
+              onReaction={handleCommentReaction}
               currentUserId={user?.id}
               formatDate={formatDate}
               netVotes={netVotes(comment)}
+              userReactions={userCommentReactions}
             />
           ))
         )}
@@ -230,9 +286,11 @@ function CommentThread({
   setReplyContent, 
   onSubmitReply, 
   onVote, 
+  onReaction,
   currentUserId, 
   formatDate, 
-  netVotes 
+  netVotes,
+  userReactions
 }) {
   const isAuthor = currentUserId && comment.authorId === currentUserId
   const showReplyForm = replyingTo === comment.id
@@ -244,9 +302,11 @@ function CommentThread({
         isAuthor={isAuthor}
         onVote={onVote}
         onReply={onReply}
+        onReaction={onReaction}
         formatDate={formatDate}
         netVotes={netVotes}
         currentUserId={currentUserId}
+        userReactions={userReactions}
       />
 
       {replies.length > 0 && (
@@ -268,9 +328,11 @@ function CommentThread({
                   isAuthor={currentUserId && reply.authorId === currentUserId}
                   onVote={onVote}
                   onReply={onReply}
+                  onReaction={onReaction}
                   formatDate={formatDate}
                   netVotes={netVotes(reply)}
                   currentUserId={currentUserId}
+                  userReactions={userReactions}
                   isReply
                 />
               ))}
@@ -308,7 +370,9 @@ function CommentThread({
   )
 }
 
-function CommentItem({ comment, isAuthor, onVote, onReply, formatDate, netVotes, currentUserId, isReply }) {
+function CommentItem({ comment, isAuthor, onVote, onReply, onReaction, formatDate, netVotes, currentUserId, userReactions, isReply }) {
+  const reactions = comment.reactions || {}
+
   return (
     <div className={`comment-item ${isReply ? 'reply' : ''}`}>
       <div className="comment-main">
@@ -365,6 +429,30 @@ function CommentItem({ comment, isAuthor, onVote, onReply, formatDate, netVotes,
           </header>
 
           <p className="comment-text">{comment.content}</p>
+
+          {/* Comment Reactions */}
+          {Object.keys(reactions).length > 0 && (
+            <div className="comment-reactions">
+              {EMOJI_REACTIONS.map(emoji => {
+                const count = reactions[emoji] || 0
+                const key = `${comment.id}:${emoji}`
+                const hasReacted = userReactions[key]
+                return (
+                  <button
+                    key={emoji}
+                    className={`reaction-btn small ${hasReacted ? 'reacted' : ''} ${count > 0 ? 'has-count' : ''}`}
+                    onClick={() => onReaction(comment.id, emoji)}
+                    disabled={!currentUserId}
+                    aria-label={`${count} réaction${count > 1 ? 's' : ''} ${emoji}`}
+                    aria-pressed={hasReacted}
+                  >
+                    <span className="reaction-emoji">{emoji}</span>
+                    {count > 0 && <span className="reaction-count">{count}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
 
           <footer className="comment-footer">
             <button 

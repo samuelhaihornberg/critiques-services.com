@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { useReviews } from '../hooks/useReviews'
+import { useReviews, EMOJI_REACTIONS } from '../hooks/useReviews'
 import { useAuth } from '../hooks/useAuth'
 import Comments from '../components/Comments'
 import './ReviewDetail.css'
 
 export default function ReviewDetail() {
   const { id } = useParams()
-  const { reviews, getReview, voteReview, getComments, createComment, voteComment, loading: reviewsLoading } = useReviews()
+  const { reviews, getReview, voteReview, getComments, createComment, voteComment, addReaction, removeReaction, hasUserReacted, loading: reviewsLoading } = useReviews()
   const { user, isAuthenticated } = useAuth()
   const [review, setReview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [videoPlaying, setVideoPlaying] = useState(false)
   const [commentsLoaded, setCommentsLoaded] = useState(false)
+  const [activeProofIndex, setActiveProofIndex] = useState(0)
+  const [showAllReactions, setShowAllReactions] = useState(false)
+  const [userReactions, setUserReactions] = useState({})
 
   useEffect(() => {
     const loadReview = async () => {
@@ -25,6 +28,15 @@ export default function ReviewDetail() {
         }
         if (found) {
           setReview(found)
+          // Check user reactions
+          if (user && found.reactions) {
+            const reactions = {}
+            for (const emoji of Object.keys(found.reactions)) {
+              const hasReacted = await hasUserReacted(id, user.id, emoji)
+              reactions[emoji] = hasReacted
+            }
+            setUserReactions(reactions)
+          }
         } else {
           setError('Critique non trouvée')
         }
@@ -35,7 +47,7 @@ export default function ReviewDetail() {
       }
     }
     loadReview()
-  }, [id, reviews, getReview])
+  }, [id, reviews, getReview, user, hasUserReacted])
 
   const handleVote = async (type) => {
     if (!isAuthenticated) {
@@ -50,6 +62,34 @@ export default function ReviewDetail() {
         [type]: prev.votes[type] + 1
       }
     } : null)
+  }
+
+  const handleReaction = async (emoji) => {
+    if (!isAuthenticated) {
+      alert('Connectez-vous pour réagir')
+      return
+    }
+    const hasReacted = userReactions[emoji]
+    if (hasReacted) {
+      await removeReaction(id, user.id, emoji)
+      setUserReactions(prev => ({ ...prev, [emoji]: false }))
+      setReview(prev => {
+        if (!prev) return null
+        const reactions = { ...prev.reactions }
+        reactions[emoji] = Math.max(0, (reactions[emoji] || 1) - 1)
+        if (reactions[emoji] === 0) delete reactions[emoji]
+        return { ...prev, reactions }
+      })
+    } else {
+      await addReaction(id, user.id, user.authorName || 'Utilisateur', user.authorAvatar || null, emoji)
+      setUserReactions(prev => ({ ...prev, [emoji]: true }))
+      setReview(prev => {
+        if (!prev) return null
+        const reactions = { ...prev.reactions }
+        reactions[emoji] = (reactions[emoji] || 0) + 1
+        return { ...prev, reactions }
+      })
+    }
   }
 
   const formatDate = (dateString) => {
@@ -69,6 +109,15 @@ export default function ReviewDetail() {
       month: 'long',
       year: 'numeric'
     })
+  }
+
+  const formatPrice = (price, currency) => {
+    if (price === null || price === undefined) return 'Non spécifié'
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: currency || 'EUR',
+      minimumFractionDigits: 2
+    }).format(price)
   }
 
   if (loading || reviewsLoading) {
@@ -96,6 +145,9 @@ export default function ReviewDetail() {
   const netVotes = review.votes.up - review.votes.down
   const location = review.location || { address: 'Non spécifié', coords: null, isOnline: false }
   const isOnlineService = location.isOnline || review.category === 'internet' || review.category === 'ecommerce'
+  const proofs = review.proofs || []
+  const hasProofs = proofs.length > 0
+  const reactions = review.reactions || {}
 
   return (
     <article className="review-detail">
@@ -130,8 +182,8 @@ export default function ReviewDetail() {
             {review.verified && (
               <span className="verified-badge" title="Critique vérifiée avec preuves">✓ Vérifié</span>
             )}
-            {review.videoUrl && (
-              <span className="video-badge" title="Contient une vidéo de preuve">📹 Vidéo</span>
+            {hasProofs && (
+              <span className="proofs-badge" title={`${proofs.length} preuve${proofs.length > 1 ? 's' : ''}`}>📎 {proofs.length}</span>
             )}
           </div>
           <div className="author-meta">
@@ -201,7 +253,95 @@ export default function ReviewDetail() {
         )}
       </div>
 
-      {review.videoUrl && (
+      {/* Proofs Gallery */}
+      {hasProofs && (
+        <section className="detail-proofs" aria-labelledby="proofs-title">
+          <h2 id="proofs-title" className="section-title">Preuves ({proofs.length})</h2>
+          <div className="proofs-gallery">
+            {proofs.map((proof, index) => (
+              <div
+                key={index}
+                className={`proof-item ${activeProofIndex === index ? 'active' : ''}`}
+                onClick={() => setActiveProofIndex(index)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveProofIndex(index); }}}
+              >
+                {proof.type === 'image' && <img src={proof.url} alt={proof.caption || `Preuve ${index + 1}`} loading="lazy" />}
+                {proof.type === 'video' && (
+                  <video src={proof.url} preload="metadata" muted>
+                    <source src={proof.url} type="video/mp4" />
+                  </video>
+                )}
+                {proof.type === 'audio' && (
+                  <audio src={proof.url} controls preload="metadata">
+                    <source src={proof.url} type="audio/mpeg" />
+                  </audio>
+                )}
+                {proof.type === 'document' && (
+                  <div className="document-proof">
+                    <span className="doc-icon">📄</span>
+                    <span className="doc-name">{proof.fileName || proof.caption || 'Document'}</span>
+                  </div>
+                )}
+                {proof.caption && <span className="proof-caption">{proof.caption}</span>}
+                <span className="proof-type-badge">{proof.type === 'image' ? '🖼️' : proof.type === 'video' ? '🎥' : proof.type === 'audio' ? '🎵' : '📄'}</span>
+              </div>
+            ))}
+          </div>
+          {proofs.length > 4 && (
+            <div className="proofs-nav">
+              <button className="proof-nav-btn" onClick={() => setActiveProofIndex(i => i > 0 ? i - 1 : proofs.length - 1)} aria-label="Précédent">‹</button>
+              <span className="proof-counter">{activeProofIndex + 1} / {proofs.length}</span>
+              <button className="proof-nav-btn" onClick={() => setActiveProofIndex(i => (i + 1) % proofs.length)} aria-label="Suivant">›</button>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* Author Comment */}
+      {review.authorComment && (
+        <section className="detail-author-comment" aria-labelledby="author-comment-title">
+          <h2 id="author-comment-title" className="section-title">💬 Commentaire de l'auteur</h2>
+          <div className="author-comment-content">
+            <p>{review.authorComment}</p>
+          </div>
+        </section>
+      )}
+
+      {/* Price Section */}
+      {(review.pricePaid !== null && review.pricePaid !== undefined) || (review.priceComparison && review.priceComparison.length > 0) ? (
+        <section className="detail-price" aria-labelledby="price-title">
+          <h2 id="price-title" className="section-title">💰 Prix et comparatif</h2>
+          <div className="price-grid">
+            {review.pricePaid !== null && review.pricePaid !== undefined && (
+              <div className="price-main">
+                <span className="price-label">Prix payé</span>
+                <span className="price-value">{formatPrice(review.pricePaid, review.priceCurrency)}</span>
+              </div>
+            )}
+            {review.priceComparison && review.priceComparison.length > 0 && (
+              <div className="price-comparison">
+                <h3>Comparatif</h3>
+                <ul className="comparison-list">
+                  {review.priceComparison.map((comp, i) => (
+                    <li key={i} className="comparison-item">
+                      <div className="comp-info">
+                        <span className="comp-name">{comp.serviceName}</span>
+                        {comp.note && <span className="comp-note">{comp.note}</span>}
+                      </div>
+                      <span className="comp-price">{comp.price !== null ? formatPrice(comp.price, comp.currency) : 'N/A'}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Video (legacy) */}
+      {review.videoUrl && !hasProofs && (
         <div className="detail-video">
           <video
             controls
@@ -229,6 +369,49 @@ export default function ReviewDetail() {
         </div>
       )}
 
+      {/* Reactions Bar */}
+      <section className="detail-reactions" aria-labelledby="reactions-title">
+        <h2 id="reactions-title" className="section-title">Réactions instantanées</h2>
+        <div className="reactions-bar">
+          {EMOJI_REACTIONS.map(emoji => {
+            const count = reactions[emoji] || 0
+            const hasReacted = userReactions[emoji]
+            return (
+              <button
+                key={emoji}
+                className={`reaction-btn ${hasReacted ? 'reacted' : ''} ${count > 0 ? 'has-count' : ''}`}
+                onClick={() => handleReaction(emoji)}
+                disabled={!isAuthenticated}
+                aria-label={`${count} réaction${count > 1 ? 's' : ''} ${emoji}`}
+                aria-pressed={hasReacted}
+              >
+                <span className="reaction-emoji">{emoji}</span>
+                {count > 0 && <span className="reaction-count">{count}</span>}
+              </button>
+            )
+          })}
+          {showAllReactions && (
+            <button className="reaction-btn more-btn" onClick={() => setShowAllReactions(false)} aria-label="Masquer">
+              <span>⋯</span>
+            </button>
+          )}
+          {!showAllReactions && Object.keys(reactions).some(e => !EMOJI_REACTIONS.includes(e)) && (
+            <button className="reaction-btn more-btn" onClick={() => setShowAllReactions(true)} aria-label="Voir plus">
+              <span>+</span>
+            </button>
+          )}
+        </div>
+        {Object.keys(reactions).length > 0 && (
+          <div className="reactions-summary">
+            <span>Total : {Object.values(reactions).reduce((a, b) => a + b, 0)} réaction(s)</span>
+            {isAuthenticated && !Object.values(userReactions).some(v => v) && (
+              <span className="reaction-hint">Cliquez pour réagir</span>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Votes */}
       <div className="detail-votes">
         <button
           className={`vote-btn large up ${netVotes > 0 ? 'active' : ''}`}
@@ -265,6 +448,9 @@ export default function ReviewDetail() {
         }}
         createComment={createComment}
         voteComment={voteComment}
+        addReaction={addReaction}
+        removeReaction={removeReaction}
+        hasUserReacted={hasUserReacted}
       />
 
       <nav className="detail-nav" aria-label="Navigation">

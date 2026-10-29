@@ -388,3 +388,254 @@
 .leaflet-container {
   font-family: inherit !important;
 }
+
+/* Proof upload */
+.proof-types-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.proof-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.proof-tab:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-secondary);
+}
+
+.proof-tab.active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.proof-upload-area {
+  margin-bottom: 1rem;
+}
+
+.proof-file-input {
+  position: absolute;
+  width: 0.1px;
+  height: 0.1px;
+  opacity: 0;
+  overflow: hidden;
+  z-index: -1;
+}
+
+.proof-drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: var(--bg-tertiary);
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  text-align: center;
+}
+
+.proof-drop-zone:hover,
+.proof-drop-zone.drag-over {
+  border-color: var(--accent-primary);
+  background: rgba(233, 69, 96, 0.05);
+}
+
+.drop-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.proof-drop-zone p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.drop-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.proof-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.proof-preview-item {
+  position: relative;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.proof-preview-item img,
+.proof-preview-item video,
+.proof-preview-item audio {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  background: #000;
+}
+
+.proof-preview-item audio {
+  height: 40px;
+}
+
+.document-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+}
+
+.proof-caption-input {
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-top: none;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+
+.proof-caption-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.proof-remove-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--error);
+  border: none;
+  border-radius: 50%;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.proof-preview-item:hover .proof-remove-btn {
+  opacity: 1;
+}
+
+/* Price comparison */
+.price-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.price-input-wrapper .form-input {
+  flex: 1;
+}
+
+.price-input-wrapper.small .form-input {
+  width: 80px;
+}
+
+.currency-select {
+  width: auto !important;
+  min-width: 90px;
+  padding-right: 2.5rem !important;
+}
+
+.price-comparison-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.price-comparison-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.comparison-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 250px;
+}
+
+.comparison-fields .form-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.price-comparison-item .price-input-wrapper {
+  flex-shrink: 0;
+}
+
+.remove-comparison {
+  align-self: flex-start;
+  margin-top: 0.5rem;
+}
+
+/* Author comment */
+#authorComment {
+  min-height: 100px;
+}
+
+@media (max-width: 600px) {
+  .proof-previews {
+    grid-template-columns: 1fr;
+  }
+  
+  .price-comparison-item {
+    flex-direction: column;
+  }
+  
+  .comparison-fields {
+    flex-direction: column;
+  }
+  
+  .comparison-fields .form-input {
+    width: 100%;
+  }
+  
+  .price-input-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .currency-select {
+    width: 100% !important;
+  }
+}

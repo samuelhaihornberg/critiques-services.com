@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useReviews, CATEGORIES } from '../hooks/useReviews'
+import { useReviews, CATEGORIES, PROOF_TYPES } from '../hooks/useReviews'
 import { useAuth } from '../hooks/useAuth'
 import LeafletMap from '../components/LeafletMap'
 import './CreateReview.css'
@@ -22,9 +22,13 @@ export default function CreateReview() {
       isOnline: false
     },
     tags: '',
-    videoUrl: '',
-    videoFile: null,
-    experienceDate: new Date().toISOString().split('T')[0]
+    experienceDate: new Date().toISOString().split('T')[0],
+    // New fields
+    proofs: [],
+    authorComment: '',
+    pricePaid: '',
+    priceCurrency: 'EUR',
+    priceComparison: [{ serviceName: '', price: '', currency: 'EUR', note: '' }]
   })
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
@@ -33,7 +37,9 @@ export default function CreateReview() {
   const [searchAddress, setSearchAddress] = useState('')
   const [addressSuggestions, setAddressSuggestions] = useState([])
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const addressInputRef = useState(null)
+  const [activeProofType, setActiveProofType] = useState('image')
+  const [proofFiles, setProofFiles] = useState({})
+  const [proofPreviews, setProofPreviews] = useState({})
 
   useEffect(() => {
     if (authLoading) return
@@ -58,6 +64,9 @@ export default function CreateReview() {
     if (!formData.location.isOnline && !formData.location.address.trim()) {
       newErrors.address = 'L\'adresse est requise pour un service physique'
     }
+    if (formData.pricePaid && isNaN(parseFloat(formData.pricePaid))) {
+      newErrors.pricePaid = 'Prix invalide'
+    }
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }, [formData])
@@ -77,6 +86,14 @@ export default function CreateReview() {
       setFormData(prev => ({
         ...prev,
         location: { ...prev.location, [name.split('.')[1]]: type === 'checkbox' ? checked : value }
+      }))
+    } else if (name.startsWith('priceComparison.')) {
+      const [, index, field] = name.split('.')
+      setFormData(prev => ({
+        ...prev,
+        priceComparison: prev.priceComparison.map((item, i) => 
+          i === parseInt(index) ? { ...item, [field]: value } : item
+        )
       }))
     } else {
       setFormData(prev => ({ ...prev, [name]: value }))
@@ -151,17 +168,87 @@ export default function CreateReview() {
     }
   }
 
-  const handleVideoFile = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      if (file.size > 100 * 1024 * 1024) {
-        alert('La vidéo ne doit pas dépasser 100 Mo')
-        return
+  const handleProofFile = (e, proofType) => {
+    const files = Array.from(e.target.files)
+    const maxSize = proofType === 'video' ? 100 * 1024 * 1024 : 20 * 1024 * 1024
+    
+    const validFiles = files.filter(file => {
+      if (file.size > maxSize) {
+        alert(`Le fichier ${file.name} dépasse la taille max (${proofType === 'video' ? '100 Mo' : '20 Mo'})`)
+        return false
       }
-      setFormData(prev => ({ ...prev, videoFile: file }))
+      return true
+    })
+
+    if (validFiles.length === 0) return
+
+    setProofFiles(prev => ({
+      ...prev,
+      [proofType]: [...(prev[proofType] || []), ...validFiles]
+    }))
+
+    validFiles.forEach(file => {
       const url = URL.createObjectURL(file)
-      setFormData(prev => ({ ...prev, videoUrl: url }))
-    }
+      setProofPreviews(prev => ({
+        ...prev,
+        [proofType]: [...(prev[proofType] || []), { file, url, caption: '' }]
+      }))
+    })
+  }
+
+  const removeProof = (proofType, index) => {
+    setProofFiles(prev => {
+      const next = { ...prev }
+      next[proofType] = next[proofType].filter((_, i) => i !== index)
+      if (next[proofType].length === 0) delete next[proofType]
+      return next
+    })
+    setProofPreviews(prev => {
+      const next = { ...prev }
+      if (next[proofType][index]?.url) URL.revokeObjectURL(next[proofType][index].url)
+      next[proofType] = next[proofType].filter((_, i) => i !== index)
+      if (next[proofType].length === 0) delete next[proofType]
+      return next
+    })
+  }
+
+  const updateProofCaption = (proofType, index, caption) => {
+    setProofPreviews(prev => ({
+      ...prev,
+      [proofType]: prev[proofType].map((item, i) => i === index ? { ...item, caption } : item)
+    }))
+  }
+
+  const addPriceComparison = () => {
+    setFormData(prev => ({
+      ...prev,
+      priceComparison: [...prev.priceComparison, { serviceName: '', price: '', currency: 'EUR', note: '' }]
+    }))
+  }
+
+  const removePriceComparison = (index) => {
+    if (formData.priceComparison.length <= 1) return
+    setFormData(prev => ({
+      ...prev,
+      priceComparison: prev.priceComparison.filter((_, i) => i !== index)
+    }))
+  }
+
+  const prepareProofsForSubmit = () => {
+    const proofs = []
+    Object.entries(proofPreviews).forEach(([type, items]) => {
+      items.forEach(item => {
+        proofs.push({
+          type,
+          url: item.url,
+          caption: item.caption,
+          fileName: item.file.name,
+          fileSize: item.file.size,
+          fileType: item.file.type
+        })
+      })
+    })
+    return proofs
   }
 
   const handleSubmit = async (e) => {
@@ -175,10 +262,18 @@ export default function CreateReview() {
         .map(t => t.trim())
         .filter(t => t)
 
+      const priceComparison = formData.priceComparison
+        .filter(item => item.serviceName.trim() || item.price)
+        .map(item => ({
+          serviceName: item.serviceName.trim(),
+          price: item.price ? parseFloat(item.price) : null,
+          currency: item.currency || 'EUR',
+          note: item.note.trim()
+        }))
+
       const reviewData = {
         ...formData,
         tags: tagArray,
-        videoUrl: formData.videoFile ? formData.videoUrl : (formData.videoUrl || null),
         authorId: user.id,
         authorName: user.authorName || 'Utilisateur',
         authorAvatar: user.authorAvatar || null,
@@ -186,10 +281,19 @@ export default function CreateReview() {
           address: formData.location.address,
           coords: formData.location.coords,
           isOnline: formData.location.isOnline
-        }
+        },
+        proofs: prepareProofsForSubmit(),
+        authorComment: formData.authorComment.trim(),
+        pricePaid: formData.pricePaid ? parseFloat(formData.pricePaid) : null,
+        priceCurrency: formData.priceCurrency,
+        priceComparison
       }
 
       await createReview(reviewData)
+      // Clean up object URLs
+      Object.values(proofPreviews).flat().forEach(item => {
+        if (item.url) URL.revokeObjectURL(item.url)
+      })
       navigate('/reviews')
     } catch (err) {
       console.error('Erreur création critique:', err)
@@ -431,27 +535,187 @@ export default function CreateReview() {
         </div>
 
         <div className="form-section">
-          <h2 className="section-title">Preuve vidéo (optionnel mais recommandé)</h2>
-          <div className="form-group">
-            <label htmlFor="videoFile" className="form-label">
-              Ajouter une vidéo (max 100 Mo, MP4/WebM)
-            </label>
+          <h2 className="section-title">Preuves (images, vidéos, audio, documents)</h2>
+          
+          <div className="proof-types-tabs">
+            {PROOF_TYPES.map(type => (
+              <button
+                key={type.value}
+                type="button"
+                className={`proof-tab ${activeProofType === type.value ? 'active' : ''}`}
+                onClick={() => setActiveProofType(type.value)}
+              >
+                <span>{type.icon}</span> {type.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="proof-upload-area">
             <input
-              id="videoFile"
               type="file"
-              accept="video/mp4,video/webm,video/quicktime"
-              onChange={handleVideoFile}
-              className="form-file"
+              id={`proof-${activeProofType}`}
+              accept={PROOF_TYPES.find(t => t.value === activeProofType).accept}
+              multiple
+              onChange={(e) => handleProofFile(e, activeProofType)}
+              className="proof-file-input"
             />
-            {formData.videoUrl && (
-              <div className="video-preview">
-                <video controls src={formData.videoUrl} preload="metadata"></video>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => {
-                  setFormData(prev => ({ ...prev, videoUrl: '', videoFile: null }))
-                }}>Retirer la vidéo</button>
+            <label htmlFor={`proof-${activeProofType}`} className="proof-drop-zone">
+              <span className="drop-icon">{PROOF_TYPES.find(t => t.value === activeProofType).icon}</span>
+              <p>Glissez-déposez ou cliquez pour ajouter des {PROOF_TYPES.find(t => t.value === activeProofType).label.toLowerCase()}s</p>
+              <span className="drop-hint">Max {activeProofType === 'video' ? '100 Mo' : '20 Mo'} par fichier</span>
+            </label>
+          </div>
+
+          {proofPreviews[activeProofType]?.length > 0 && (
+            <div className="proof-previews">
+              {proofPreviews[activeProofType].map((item, index) => (
+                <div key={index} className="proof-preview-item">
+                  {item.file.type.startsWith('image/') && (
+                    <img src={item.url} alt={item.caption || `Preuve ${index + 1}`} />
+                  )}
+                  {item.file.type.startsWith('video/') && (
+                    <video src={item.url} controls preload="metadata" />
+                  )}
+                  {item.file.type.startsWith('audio/') && (
+                    <audio src={item.url} controls preload="metadata" />
+                  )}
+                  {item.file.type === 'application/pdf' && (
+                    <div className="document-preview">
+                      <span>📄</span> {item.file.name}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    placeholder="Légende (optionnel)"
+                    value={item.caption}
+                    onChange={(e) => updateProofCaption(activeProofType, index, e.target.value)}
+                    className="proof-caption-input"
+                  />
+                  <button
+                    type="button"
+                    className="proof-remove-btn"
+                    onClick={() => removeProof(activeProofType, index)}
+                    aria-label="Supprimer cette preuve"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="form-hint">Ajoutez photos, vidéos, enregistrements audio ou documents pour étayer votre critique.</p>
+        </div>
+
+        <div className="form-section">
+          <h2 className="section-title">Commentaire de l'auteur (optionnel)</h2>
+          <div className="form-group">
+            <label htmlFor="authorComment" className="form-label">Votre commentaire / analyse</label>
+            <textarea
+              id="authorComment"
+              name="authorComment"
+              value={formData.authorComment}
+              onChange={handleChange}
+              placeholder="En tant qu'auteur, ajoutez votre analyse, votre conclusion, ou tout contexte supplémentaire..."
+              className="form-textarea"
+              rows={4}
+            />
+            <p className="form-hint">Ce commentaire sera affiché distinctement comme « Commentaire de l'auteur »</p>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h2 className="section-title">Prix payé et comparatif</h2>
+          
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="pricePaid" className="form-label">Prix payé</label>
+              <div className="price-input-wrapper">
+                <input
+                  id="pricePaid"
+                  name="pricePaid"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.pricePaid}
+                  onChange={handleChange}
+                  placeholder="Ex: 29.99"
+                  className={`form-input ${errors.pricePaid ? 'error' : ''}`}
+                />
+                <select name="priceCurrency" value={formData.priceCurrency} onChange={handleChange} className="currency-select">
+                  <option value="EUR">€ EUR</option>
+                  <option value="USD">$ USD</option>
+                  <option value="GBP">£ GBP</option>
+                  <option value="CAD">$ CAD</option>
+                </select>
               </div>
-            )}
-            <p className="form-hint">Une vidéo renforce la crédibilité de votre critique. Filmez l'accueil, le produit, le problème rencontré, etc.</p>
+              {errors.pricePaid && <span className="error-message">{errors.pricePaid}</span>}
+              <p className="form-hint">Le prix réel que vous avez payé pour ce service</p>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Comparatif avec services similaires</label>
+              <div className="price-comparison-list">
+                {formData.priceComparison.map((item, index) => (
+                  <div key={index} className="price-comparison-item">
+                    <div className="comparison-fields">
+                      <input
+                        name={`priceComparison.${index}.serviceName`}
+                        type="text"
+                        value={item.serviceName}
+                        onChange={handleChange}
+                        placeholder="Nom du service concurrent"
+                        className="form-input"
+                      />
+                      <div className="price-input-wrapper small">
+                        <input
+                          name={`priceComparison.${index}.price`}
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={item.price}
+                          onChange={handleChange}
+                          placeholder="Prix"
+                          className="form-input"
+                        />
+                        <select
+                          name={`priceComparison.${index}.currency`}
+                          value={item.currency}
+                          onChange={handleChange}
+                          className="currency-select"
+                        >
+                          <option value="EUR">€</option>
+                          <option value="USD">$</option>
+                          <option value="GBP">£</option>
+                        </select>
+                      </div>
+                    </div>
+                    <input
+                      name={`priceComparison.${index}.note`}
+                      type="text"
+                      value={item.note}
+                      onChange={handleChange}
+                      placeholder="Note (ex: sans engagement, livraison incluse...)"
+                      className="form-input"
+                    />
+                    {formData.priceComparison.length > 1 && (
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm remove-comparison"
+                        onClick={() => removePriceComparison(index)}
+                        aria-label="Retirer ce comparatif"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={addPriceComparison}>
+                ➕ Ajouter un service pour comparer
+              </button>
+              <p className="form-hint">Aidez les lecteurs à comparer les prix avec la concurrence</p>
+            </div>
           </div>
         </div>
 

@@ -56,4 +56,10 @@
 - **Dépendances dev** : 9
 
 ### Dernière mise à jour
-2024-01-29 - Création initiale complète
+2024-01-29 - Création initiale complète + push GitHub
+
+### Déploiement
+- **GitHub Repo** : https://github.com/samuelhaihornberg/critiques-services.com
+- **GitHub Pages** : À activer (Settings → Pages → Source: GitHub Actions ou gh-pages branch)
+- **Local dev** : http://localhost:3000 ✅ HTTP 200
+- **Build production** : `dist/` prêt pour déploiement statique
