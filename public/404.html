@@ -58,7 +58,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script type="module" src="/src/main.jsx"></script>
     <script>
-      // Hide fallback when React mounts
       const root = document.getElementById('root');
       const fallback = document.getElementById('spa-fallback');
       const observer = new MutationObserver(() => {
@@ -68,7 +67,6 @@
         }
       });
       observer.observe(root, { childList: true, subtree: true });
-      // Fallback timeout
       setTimeout(() => { fallback.style.opacity = '0.5'; }, 5000);
       setTimeout(() => { fallback.style.display = 'none'; }, 10000);
     </script>

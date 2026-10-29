@@ -1,11 +1,9 @@
-name: Deploy PWA to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches: ['master']
   workflow_dispatch:
-  release:
-    types: [published]
 
 permissions:
   contents: read
@@ -21,7 +19,7 @@ env:
 
 jobs:
   build:
-    name: Build PWA
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -42,45 +40,17 @@ jobs:
       - name: Run tests
         run: npm test --if-present
 
-      - name: Build PWA
+      - name: Build
         run: npm run build
-
-      - name: Verify PWA manifest
-        run: |
-          cat dist/manifest.webmanifest
-          echo "---"
-          node -e "
-            const manifest = require('./dist/manifest.webmanifest');
-            const required = ['name', 'short_name', 'start_url', 'display', 'background_color', 'theme_color', 'icons'];
-            for (const field of required) {
-              if (!manifest[field]) {
-                console.error('Missing required field:', field);
-                process.exit(1);
-              }
-            }
-            console.log('✅ Manifest valid');
-            console.log('Icons:', manifest.icons.length);
-            console.log('Start URL:', manifest.start_url);
-            console.log('Display:', manifest.display);
-          "
-
-      - name: Verify Service Worker
-        run: |
-          if [ -f dist/sw.js ]; then
-            echo "✅ Service Worker exists"
-            head -20 dist/sw.js
-          else
-            echo "❌ Service Worker missing"
-            exit 1
-          fi
 
       - name: Verify critical assets
         run: |
-          for asset in index.html assets/index-*.js assets/index-*.css manifest.webmanifest sw.js registerSW.js favicon.svg; do
+          for asset in index.html assets/index-*.js assets/index-*.css favicon.svg; do
             if ls dist/$asset 2>/dev/null | grep -q .; then
               echo "✅ $asset"
             else
-              echo "⚠️  $asset not found"
+              echo "❌ $asset missing"
+              exit 1
             fi
           done
 
@@ -101,74 +71,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
-  # Optional: Create release on tag push
-  release:
-    name: Create Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Get version from tag
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-
-      - name: Generate changelog
-        run: |
-          echo "## Changes" > CHANGELOG.md
-          git log --oneline --format="- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> CHANGELOG.md || echo "Initial release" >> CHANGELOG.md
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ steps.version.outputs.VERSION }}
-          body_path: CHANGELOG.md
-          files: |
-            dist/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Optional: Lighthouse CI for PWA audit
-  lighthouse:
-    name: Lighthouse PWA Audit
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-
-      - name: Install Lighthouse CI
-        run: npm install -g @lhci/cli@0.12.x
-
-      - name: Run Lighthouse
-        run: |
-          npx http-server ./dist -p 8080 -s &
-          sleep 3
-          lhci autorun --upload.target=temporary-public-storage || true
-        env:
-          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
