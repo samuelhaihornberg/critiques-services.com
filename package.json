@@ -2,6 +2,7 @@
   "name": "critiques-services.com",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://samuelhaihornberg.github.io/critiques-services.com/",
   "type": "module",
   "scripts": {
     "dev": "vite",
